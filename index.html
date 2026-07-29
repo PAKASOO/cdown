@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Countdown</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0C0A18; --bg-glow:#191233; --surface:#15122A; --surface-2:#1C1836;
+    --line:#2B2450; --ink:#ECEAF6; --muted:#8A83AC; --muted-2:#645D85;
+    --accent:#F4C15D; --accent-dim:#8a6d2f; --mint:#63E4C6; --radius:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Space Grotesk",system-ui,sans-serif;
+    background:
+      radial-gradient(1100px 700px at 78% -12%, var(--bg-glow) 0%, transparent 60%),
+      radial-gradient(900px 500px at 10% 110%, #140f28 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);min-height:100%;-webkit-font-smoothing:antialiased;line-height:1.4;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:56px 24px 96px}
+
+  header{margin-bottom:40px}
+  h1{
+    font-family:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-weight:600;
+    font-size:clamp(56px,13vw,120px);line-height:1;letter-spacing:-.01em;
+  }
+  h1 em{font-style:normal;color:var(--accent)}
+  .sub{color:var(--muted);margin-top:14px;max-width:44ch;font-size:15px}
+
+  .adder{
+    margin-top:30px;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--radius);padding:18px;
+    display:grid;grid-template-columns:1.4fr 1fr auto;gap:12px;align-items:end;
+  }
+  .field{display:flex;flex-direction:column;gap:7px;min-width:0}
+  .field label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  input[type="text"],input[type="datetime-local"]{
+    font-family:inherit;font-size:15px;color:var(--ink);
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;width:100%;transition:border-color .15s,box-shadow .15s;
+  }
+  input::placeholder{color:var(--muted-2)}
+  input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(244,193,93,.14)}
+  input[type="datetime-local"]{color-scheme:dark}
+  button{font-family:inherit;cursor:pointer;border:none}
+  .add-btn{
+    background:var(--accent);color:#241a05;font-weight:700;font-size:15px;
+    padding:12px 22px;border-radius:10px;white-space:nowrap;transition:transform .1s,filter .15s;
+  }
+  .add-btn:hover{filter:brightness(1.06)}
+  .add-btn:active{transform:translateY(1px)}
+
+  /* ---- sync bar ---- */
+  .sync{
+    margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  }
+  .sync .dot{width:9px;height:9px;border-radius:50%;background:var(--muted-2);flex:none;transition:background .2s}
+  .sync.synced .dot{background:var(--mint)}
+  .sync.saving .dot{background:var(--accent)}
+  .sync.offline .dot{background:#ff8a8a}
+  .sync .stat{font-size:13px;color:var(--muted);white-space:nowrap}
+  .sync .link{
+    flex:1;min-width:150px;font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--ink);
+    background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .sync .sbtn{
+    background:var(--surface-2);color:var(--ink);border:1px solid var(--line);
+    font-size:13px;padding:8px 14px;border-radius:8px;white-space:nowrap;transition:border-color .15s;
+  }
+  .sync .sbtn:hover{border-color:var(--accent-dim)}
+  .sync .make{background:var(--accent);color:#241a05;font-weight:700;border:none}
+
+  .list-head{display:flex;align-items:baseline;justify-content:space-between;margin:48px 4px 18px}
+  .list-head h2{font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .count{font-size:13px;color:var(--muted-2);font-variant-numeric:tabular-nums}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:14px}
+  .card{
+    position:relative;text-align:left;width:100%;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:20px 20px 18px;cursor:pointer;overflow:hidden;
+    transition:border-color .18s,transform .18s,background .18s;
+  }
+  .card:hover{border-color:var(--accent-dim);background:var(--surface-2);transform:translateY(-2px)}
+  .card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .card.past{opacity:.72}
+  .card .name{font-family:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-weight:600;color:var(--ink);font-size:21px;line-height:1.2;margin-bottom:6px;word-break:break-word}
+  .card .date{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .card .mini{margin-top:16px;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;
+    font-size:20px;font-weight:500;color:var(--ink);letter-spacing:.01em}
+  .card .mini small{font-size:11px;color:var(--muted);font-family:"Space Grotesk";margin:0 5px 0 1px}
+  .card.past .mini{color:var(--mint)}
+  .card .tag{position:absolute;top:16px;right:16px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--mint);border:1px solid rgba(99,228,198,.35);border-radius:999px;padding:3px 9px}
+
+  .empty{grid-column:1/-1;text-align:center;padding:56px 20px;color:var(--muted);
+    border:1px dashed var(--line);border-radius:var(--radius)}
+  .empty strong{display:block;color:var(--ink);font-family:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:19px;font-weight:600;margin-bottom:6px}
+
+  .overlay{position:fixed;inset:0;z-index:50;display:none;background:rgba(6,5,14,.72);
+    backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:24px}
+  .overlay.on{display:flex;animation:fade .2s ease}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .panel{width:100%;max-width:620px;background:var(--surface);border:1px solid var(--line);
+    border-radius:22px;padding:36px 34px 34px;animation:rise .28s cubic-bezier(.2,.8,.2,1);position:relative}
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  .panel .close{position:absolute;top:18px;right:18px;width:34px;height:34px;border-radius:50%;
+    background:var(--bg);color:var(--muted);font-size:18px;line-height:1;display:grid;place-items:center;
+    transition:color .15s,background .15s}
+  .panel .close:hover{color:var(--ink);background:var(--surface-2)}
+  .p-name{font-family:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-weight:600;font-size:clamp(28px,5vw,40px);line-height:1.1;padding-right:40px}
+  .p-date{color:var(--muted);font-size:13.5px;margin-top:8px;font-variant-numeric:tabular-nums}
+  .track{height:3px;background:var(--line);border-radius:3px;margin:24px 0 30px;overflow:hidden}
+  .track > i{display:block;height:100%;background:var(--accent);border-radius:3px;transition:width .5s linear}
+  .fmt-label{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  .fmt-label b{color:var(--accent);font-weight:600}
+  .units{display:flex;gap:10px}
+  .unit{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:14px;padding:16px 8px 12px;text-align:center}
+  .unit .num{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;
+    font-size:clamp(30px,7vw,46px);font-weight:700;line-height:1;color:var(--ink)}
+  .unit .lab{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:9px}
+  .unit.sec .num{color:var(--accent)}
+  .tick{animation:tk .5s ease}
+  @keyframes tk{0%{transform:scale(1)}30%{transform:scale(1.09)}100%{transform:scale(1)}}
+  .fmt-two{margin-top:26px}
+  .line{display:flex;align-items:baseline;gap:2px;flex-wrap:wrap;font-family:"JetBrains Mono",monospace;
+    font-variant-numeric:tabular-nums;font-size:clamp(24px,5vw,34px);font-weight:500}
+  .line .u{color:var(--ink)}
+  .line .s{font-family:"Space Grotesk";font-size:14px;color:var(--muted);font-weight:500;margin:0 12px 0 3px}
+  .past-flag{color:var(--mint)}
+  .del{margin-top:32px;background:none;border:1px solid var(--line);color:var(--muted);
+    font-size:13px;padding:10px 16px;border-radius:10px;transition:color .15s,border-color .15s}
+  .del:hover{color:#ff8a8a;border-color:rgba(255,138,138,.4)}
+
+  @media (max-width:640px){ .adder{grid-template-columns:1fr} .wrap{padding:40px 18px 80px} .panel{padding:30px 22px 26px} }
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Count<em>down</em></h1>
+    <p class="sub">기다리는 날짜와 이름을 적어 두세요. 항목을 열면 그 순간까지 얼마나 남았는지 두 가지 형식으로 보여드려요.</p>
+
+    <div class="adder">
+      <div class="field">
+        <label for="name">이름</label>
+        <input type="text" id="name" placeholder="예: 논문 마감, 여행 출발">
+      </div>
+      <div class="field">
+        <label for="date">날짜와 시각</label>
+        <input type="datetime-local" id="date">
+      </div>
+      <button class="add-btn" id="add">추가</button>
+    </div>
+
+    <div class="sync" id="sync"></div>
+  </header>
+
+  <div class="list-head">
+    <h2>내 카운트다운</h2>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="panel" id="panel">
+    <button class="close" id="close" aria-label="닫기">&times;</button>
+    <div class="p-name" id="pName"></div>
+    <div class="p-date" id="pDate"></div>
+    <div class="track"><i id="bar"></i></div>
+
+    <div class="fmt-label"><b>①</b> 일 · 시 · 분 · 초</div>
+    <div class="units" id="unitsA">
+      <div class="unit"><div class="num" data-k="d">0</div><div class="lab">일</div></div>
+      <div class="unit"><div class="num" data-k="h">0</div><div class="lab">시</div></div>
+      <div class="unit"><div class="num" data-k="m">0</div><div class="lab">분</div></div>
+      <div class="unit sec"><div class="num" data-k="s">0</div><div class="lab">초</div></div>
+    </div>
+
+    <div class="fmt-two">
+      <div class="fmt-label"><b>②</b> 시 · 분 · 초</div>
+      <div class="line" id="lineB"></div>
+    </div>
+
+    <button class="del" id="del">이 항목 삭제</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var API = "https://jsonblob.com/api/jsonBlob";
+
+  // window.storage wrapper (local cache; falls back to memory)
+  var store = {
+    get: async function(k){ try{ var r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; }catch(_){ return null; } },
+    set: async function(k,v){ try{ await window.storage.set(k, JSON.stringify(v)); }catch(_){ } }
+  };
+
+  var items = [];
+  var blobId = null;      // when set → synced mode
+  var openId = null;
+  var lastSec = null;
+  var busy = false;       // true while pushing, to avoid pull clobber
+
+  var $ = function(s){ return document.querySelector(s); };
+  var grid = $("#grid"), countEl = $("#count"), overlay = $("#overlay"), syncEl = $("#sync");
+
+  var pad = function(n){ return String(n).padStart(2,"0"); };
+  var uid = function(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); };
+  var esc = function(s){ return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); };
+
+  function fmtDate(iso){
+    var d = new Date(iso);
+    var wd = ["일","월","화","수","목","금","토"][d.getDay()];
+    return d.getFullYear()+". "+pad(d.getMonth()+1)+". "+pad(d.getDate())+" ("+wd+") "+pad(d.getHours())+":"+pad(d.getMinutes());
+  }
+  function parts(ms){
+    var past = ms < 0, t = Math.floor(Math.abs(ms)/1000);
+    var d = Math.floor(t/86400); t -= d*86400;
+    var h = Math.floor(t/3600);  t -= h*3600;
+    var m = Math.floor(t/60);    t -= m*60;
+    return { past:past, d:d, h:h, m:m, s:t, totalH:Math.floor(Math.abs(ms)/3600000) };
+  }
+
+  // ---------- sync layer ----------
+  function urlFor(){ return API + "/" + blobId; }
+  function setStatus(cls){ if(!blobId) return; syncEl.className = "sync " + cls; var st = $("#st"); if(st) st.textContent = ({synced:"동기화됨",saving:"저장 중…",offline:"오프라인 · 이 기기에 임시 저장"})[cls] || ""; }
+
+  async function persist(){            // save after any change
+    if(!blobId){ await store.set("countdowns", items); return; }
+    busy = true; setStatus("saving");
+    try{
+      var r = await fetch(urlFor(), {method:"PUT", headers:{"Content-Type":"application/json","Accept":"application/json"}, body:JSON.stringify(items)});
+      if(!r.ok) throw 0;
+      await store.set("cache:"+blobId, items); setStatus("synced");
+    }catch(e){ await store.set("cache:"+blobId, items); setStatus("offline"); }
+    finally{ busy = false; }
+  }
+
+  async function pull(initial){        // fetch remote changes
+    if(!blobId || busy) return;
+    try{
+      var r = await fetch(urlFor(), {headers:{"Accept":"application/json"}});
+      if(r.status === 404){ setStatus("offline"); return; }
+      if(!r.ok) throw 0;
+      var d = await r.json();
+      if(Array.isArray(d)){
+        if(JSON.stringify(d) !== JSON.stringify(items)){ items = d; render(); if(openId) tickDetail(); }
+        await store.set("cache:"+blobId, d); setStatus("synced");
+      }
+    }catch(e){
+      setStatus("offline");
+      if(initial){ var c = await store.get("cache:"+blobId); if(Array.isArray(c)){ items = c; render(); } }
+    }
+  }
+
+  async function makeLink(){
+    setStatus("saving");
+    try{
+      var r = await fetch(API, {method:"POST", headers:{"Content-Type":"application/json","Accept":"application/json"}, body:JSON.stringify(items)});
+      if(!r.ok) throw 0;
+      var loc = r.headers.get("Location");
+      var id = loc ? loc.split("/").pop() : null;
+      if(!id) throw new Error("no-location");
+      blobId = id;
+      location.hash = "s=" + id;
+      await store.set("lastBlob", id);
+      await store.set("cache:"+id, items);
+      renderSync(); setStatus("synced");
+    }catch(e){
+      renderSync();
+      alert("동기화 링크를 만들지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.");
+    }
+  }
+
+  function copyLink(){
+    var url = location.href;
+    var done = function(){ var b = $("#cp"); if(b){ var t = b.textContent; b.textContent = "복사됨!"; setTimeout(function(){ b.textContent = t; }, 1400); } };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(done, function(){ selectLink(); }); }
+    else { selectLink(); }
+  }
+  function selectLink(){ var i = $("#lk"); if(i){ i.focus(); i.select(); try{ document.execCommand("copy"); }catch(_){ } } }
+
+  function renderSync(){
+    if(!blobId){
+      syncEl.className = "sync";
+      syncEl.innerHTML =
+        '<span class="dot"></span>'+
+        '<span class="stat">이 기기에만 저장 중</span>'+
+        '<button class="sbtn make" id="mk">여러 기기에서 보기 — 동기화 링크 만들기</button>';
+      var mk = $("#mk"); if(mk) mk.addEventListener("click", makeLink);
+    } else {
+      syncEl.className = "sync synced";
+      syncEl.innerHTML =
+        '<span class="dot"></span>'+
+        '<span class="stat" id="st">동기화됨</span>'+
+        '<input class="link" id="lk" readonly value="'+esc(location.href)+'">'+
+        '<button class="sbtn" id="cp">링크 복사</button>';
+      var cp = $("#cp"); if(cp) cp.addEventListener("click", copyLink);
+      var lk = $("#lk"); if(lk) lk.addEventListener("focus", function(){ this.select(); });
+    }
+  }
+
+  // ---------- list ----------
+  function render(){
+    countEl.textContent = items.length ? (items.length + "개") : "";
+    if(!items.length){
+      grid.innerHTML = '<div class="empty"><strong>아직 비어 있어요</strong>위에서 첫 카운트다운을 추가해 보세요.</div>';
+      return;
+    }
+    var now = Date.now();
+    var sorted = items.slice().sort(function(a,b){
+      var ra = new Date(a.target)-now, rb = new Date(b.target)-now;
+      var pa = ra<0, pb = rb<0;
+      if(pa!==pb) return pa?1:-1;
+      return pa ? rb-ra : ra-rb;
+    });
+    grid.innerHTML = sorted.map(function(it){
+      var p = parts(new Date(it.target)-now);
+      var mini = p.past
+        ? (p.d+'<small>일</small>'+p.h+'<small>시</small> 지남')
+        : (p.d+'<small>일</small>'+p.h+'<small>시</small>'+pad(p.m)+'<small>분</small>');
+      return '<button class="card '+(p.past?'past':'')+'" data-id="'+it.id+'">'+
+        (p.past?'<span class="tag">지남</span>':'')+
+        '<div class="name">'+esc(it.name)+'</div>'+
+        '<div class="date">'+fmtDate(it.target)+'</div>'+
+        '<div class="mini" data-mini="'+it.id+'">'+mini+'</div></button>';
+    }).join("");
+  }
+
+  function tickList(){
+    var now = Date.now();
+    items.forEach(function(it){
+      var el = grid.querySelector('[data-mini="'+it.id+'"]');
+      if(!el) return;
+      var p = parts(new Date(it.target)-now);
+      el.innerHTML = p.past
+        ? (p.d+'<small>일</small>'+p.h+'<small>시</small> 지남')
+        : (p.d+'<small>일</small>'+p.h+'<small>시</small>'+pad(p.m)+'<small>분</small>');
+    });
+  }
+
+  // ---------- detail ----------
+  function openDetail(id){
+    var it = items.filter(function(x){return x.id===id;})[0];
+    if(!it) return;
+    openId = id; lastSec = null;
+    $("#pName").textContent = it.name;
+    $("#pDate").textContent = fmtDate(it.target);
+    overlay.classList.add("on");
+    document.body.style.overflow = "hidden";
+    tickDetail();
+  }
+  function closeDetail(){ openId = null; overlay.classList.remove("on"); document.body.style.overflow = ""; }
+
+  function tickDetail(){
+    if(!openId) return;
+    var it = items.filter(function(x){return x.id===openId;})[0];
+    if(!it){ closeDetail(); return; }
+    var ms = new Date(it.target) - Date.now();
+    var p = parts(ms);
+    var set = function(k,v){ var n = $('#unitsA .num[data-k="'+k+'"]'); if(n) n.textContent = v; };
+    set("d", p.d); set("h", pad(p.h)); set("m", pad(p.m)); set("s", pad(p.s));
+    if(p.s !== lastSec){ var sc = $('#unitsA .sec .num'); if(sc){ sc.classList.remove("tick"); void sc.offsetWidth; sc.classList.add("tick"); } lastSec = p.s; }
+    var flag = p.past ? '<span class="s past-flag">지났어요</span>' : "";
+    $("#lineB").innerHTML =
+      '<span class="u">'+p.totalH+'</span><span class="s">시</span>'+
+      '<span class="u">'+pad(p.m)+'</span><span class="s">분</span>'+
+      '<span class="u">'+pad(p.s)+'</span><span class="s">초</span>'+flag;
+    var start = it.created || new Date(it.target).getTime();
+    var span = new Date(it.target) - start;
+    var prog = span>0 ? (Date.now()-start)/span : 1;
+    prog = Math.max(0, Math.min(1, prog));
+    var bar = $("#bar"); bar.style.width = (prog*100)+"%"; bar.style.background = p.past ? "var(--mint)" : "var(--accent)";
+  }
+
+  // ---------- add / delete ----------
+  async function add(){
+    var name = $("#name").value.trim();
+    var date = $("#date").value;
+    if(!name){ $("#name").focus(); return; }
+    if(!date){ $("#date").focus(); return; }
+    items.push({ id:uid(), name:name, target:date, created:Date.now() });
+    $("#name").value = ""; $("#date").value = "";
+    render(); await persist(); $("#name").focus();
+  }
+  async function del(){
+    if(!openId) return;
+    items = items.filter(function(x){return x.id!==openId;});
+    closeDetail(); render(); await persist();
+  }
+
+  // ---------- events ----------
+  $("#add").addEventListener("click", add);
+  $("#name").addEventListener("keydown", function(e){ if(e.key==="Enter") $("#date").focus(); });
+  $("#date").addEventListener("keydown", function(e){ if(e.key==="Enter") add(); });
+  grid.addEventListener("click", function(e){ var c = e.target.closest(".card"); if(c) openDetail(c.dataset.id); });
+  $("#close").addEventListener("click", closeDetail);
+  $("#del").addEventListener("click", del);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) closeDetail(); });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && openId) closeDetail(); });
+  window.addEventListener("focus", function(){ pull(false); });
+  window.addEventListener("online", function(){ pull(false); });
+
+  setInterval(function(){ tickList(); tickDetail(); }, 1000);
+  setInterval(function(){ pull(false); }, 12000);
+
+  // ---------- boot ----------
+  function readHash(){ var m = location.hash.match(/s=([A-Za-z0-9_-]+)/); return m ? m[1] : null; }
+  (async function(){
+    blobId = readHash();
+    if(!blobId){ blobId = await store.get("lastBlob"); }
+    if(blobId){
+      location.hash = "s=" + blobId;
+      await store.set("lastBlob", blobId);
+      renderSync(); setStatus("saving");
+      await pull(true);
+    } else {
+      var saved = await store.get("countdowns");
+      items = Array.isArray(saved) ? saved : [];
+    }
+    render(); renderSync();
+  })();
+})();
+</script>
+</body>
+</html>
