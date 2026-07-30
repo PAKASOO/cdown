@@ -202,10 +202,25 @@
 
   var API = "https://jsonblob.com/api/jsonBlob";
 
-  // window.storage wrapper (local cache; falls back to memory)
+  // storage: real localStorage on a hosted site / normal browser,
+  // falls back to the Claude-preview sandbox API, then to memory.
+  var mem = {};
+  var LS = (function(){ try{ var k="__cd_t"; window.localStorage.setItem(k,"1"); window.localStorage.removeItem(k); return true; }catch(_){ return false; } })();
   var store = {
-    get: async function(k){ try{ var r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; }catch(_){ return null; } },
-    set: async function(k,v){ try{ await window.storage.set(k, JSON.stringify(v)); }catch(_){ } }
+    get: async function(k){
+      try{
+        if(LS){ var v = window.localStorage.getItem(k); return v ? JSON.parse(v) : null; }
+        if(window.storage){ var r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; }
+      }catch(_){ }
+      return (k in mem) ? mem[k] : null;
+    },
+    set: async function(k,v){
+      try{
+        if(LS){ window.localStorage.setItem(k, JSON.stringify(v)); return; }
+        if(window.storage){ await window.storage.set(k, JSON.stringify(v)); return; }
+      }catch(_){ }
+      mem[k] = v;
+    }
   };
 
   var items = [];
@@ -425,7 +440,10 @@
     if(blobId){
       location.hash = "s=" + blobId;
       await store.set("lastBlob", blobId);
-      renderSync(); setStatus("saving");
+      renderSync();
+      var cached = await store.get("cache:"+blobId);
+      if(Array.isArray(cached)){ items = cached; render(); }
+      setStatus("saving");
       await pull(true);
     } else {
       var saved = await store.get("countdowns");
