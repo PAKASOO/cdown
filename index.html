@@ -15,6 +15,7 @@
     --round:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  [hidden]{display:none!important}
   html,body{height:100%}
   body{
     font-family:"Space Grotesk",system-ui,sans-serif;
@@ -86,6 +87,24 @@
   .card .tag{position:absolute;top:16px;right:16px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
     color:var(--mint);border:1px solid rgba(99,228,198,.35);border-radius:999px;padding:3px 9px}
 
+  .head-right{display:flex;align-items:center;gap:12px}
+  .lbtn{background:none;border:1px solid var(--line);color:var(--muted);font-size:12px;
+    padding:6px 12px;border-radius:999px;white-space:nowrap;transition:color .15s,border-color .15s}
+  .lbtn:hover{color:var(--mint);border-color:rgba(99,228,198,.4)}
+  .arch-toggle{background:none;color:var(--muted);font-size:13px;letter-spacing:.2em;text-transform:uppercase;
+    font-weight:600;display:flex;align-items:center;gap:10px;padding:4px 0;transition:color .15s}
+  .arch-toggle:hover{color:var(--ink)}
+  .arch-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:6px}
+  .arch-toggle .chev{display:inline-block;font-size:11px;letter-spacing:0;transition:transform .18s}
+  .arch-toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+  .card .tag + .name{padding-right:54px}
+  .card.archived{opacity:.6;border-style:dashed}
+  .card.archived:hover{opacity:.9}
+  .card.archived .mini{color:var(--muted)}
+  .card.archived .tag{color:var(--muted);border-color:var(--line)}
+  .p-arch{display:inline-block;margin-top:10px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+
   .empty{grid-column:1/-1;text-align:center;padding:56px 20px;color:var(--muted);
     border:1px dashed var(--line);border-radius:var(--radius)}
   .empty strong{display:block;color:var(--ink);font-family:"Quicksand","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
@@ -130,10 +149,11 @@
   .line .s{font-family:"Space Grotesk";font-size:14px;color:var(--muted);font-weight:500;margin:0 12px 0 3px}
   .past-flag{color:var(--mint)}
 
-  .prow{display:flex;gap:10px;margin-top:32px}
+  .prow{display:flex;gap:10px;margin-top:32px;flex-wrap:wrap}
   .pbtn{background:none;border:1px solid var(--line);color:var(--muted);font-size:13px;
     padding:10px 16px;border-radius:10px;transition:color .15s,border-color .15s}
   .pbtn:hover{color:var(--ink);border-color:var(--accent-dim)}
+  .pbtn.keep:hover{color:var(--mint);border-color:rgba(99,228,198,.4)}
   .pbtn.danger:hover{color:#ff8a8a;border-color:rgba(255,138,138,.4)}
 
   .setrow{display:flex;flex-direction:column;gap:8px;margin-top:16px}
@@ -171,9 +191,18 @@
 
   <div class="list-head">
     <h2>내 카운트다운</h2>
-    <span class="count" id="count"></span>
+    <div class="head-right">
+      <button class="lbtn" id="archAll" hidden>지난 일정 모두 보관</button>
+      <span class="count" id="count"></span>
+    </div>
   </div>
   <div class="grid" id="grid"></div>
+
+  <div class="list-head" id="archHead" hidden>
+    <button class="arch-toggle" id="archToggle" aria-expanded="false" aria-controls="archGrid"><span class="chev">&#9654;</span>보관함</button>
+    <span class="count" id="archCount"></span>
+  </div>
+  <div class="grid" id="archGrid" hidden></div>
 </div>
 
 <!-- detail -->
@@ -182,6 +211,7 @@
     <button class="close" id="close" aria-label="닫기">&times;</button>
     <div class="p-name" id="pName"></div>
     <div class="p-date" id="pDate"></div>
+    <div class="p-arch" id="pArch" hidden>보관됨</div>
 
     <div class="edit" id="editBox" hidden>
       <label for="eName">이름</label>
@@ -211,6 +241,7 @@
 
     <div class="prow">
       <button class="pbtn" id="edit">수정</button>
+      <button class="pbtn keep" id="arch" hidden>보관함으로 이동</button>
       <button class="pbtn danger" id="del">삭제</button>
     </div>
   </div>
@@ -262,6 +293,8 @@
   var cfg = { owner:"", repo:"", branch:"main", path:"countdowns.json", token:"" };
 
   var $ = function(s){ return document.querySelector(s); };
+  var archOpen = false, lastPastN = -1;
+  var archGrid=$("#archGrid"), archHead=$("#archHead"), archCount=$("#archCount"), archToggle=$("#archToggle"), archAllBtn=$("#archAll");
   var grid=$("#grid"), countEl=$("#count"), overlay=$("#overlay"), setOverlay=$("#setOverlay"), syncEl=$("#sync");
   var pad=function(n){return String(n).padStart(2,"0");};
   var uid=function(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);};
@@ -391,20 +424,41 @@
   }
 
   // ---------- list ----------
+  function isPast(it,now){ return new Date(it.target)-now<0; }
+  function miniHtml(p){ return p.past?(p.d+'<small>일</small>'+p.h+'<small>시</small> 지남'):(p.d+'<small>일</small>'+p.h+'<small>시</small>'+pad(p.m)+'<small>분</small>'); }
+  function cardHtml(it,now){ var p=parts(new Date(it.target)-now), a=!!it.archived;
+    return '<button class="card '+(a?'archived':(p.past?'past':''))+'" data-id="'+it.id+'">'+(a?'<span class="tag">보관</span>':(p.past?'<span class="tag">지남</span>':''))+
+      '<div class="name">'+esc(it.name)+'</div><div class="date">'+fmtDate(it.target)+'</div>'+
+      '<div class="mini" data-mini="'+it.id+'">'+miniHtml(p)+'</div></button>'; }
+
   function render(){
-    countEl.textContent = items.length ? (items.length+"개") : "";
-    if(!items.length){ grid.innerHTML='<div class="empty"><strong>아직 비어 있어요</strong>위에서 첫 카운트다운을 추가해 보세요.</div>'; return; }
     var now=Date.now();
-    var sorted=items.slice().sort(function(a,b){ var ra=new Date(a.target)-now,rb=new Date(b.target)-now;
-      var pa=ra<0,pb=rb<0; if(pa!==pb)return pa?1:-1; return pa?rb-ra:ra-rb; });
-    grid.innerHTML=sorted.map(function(it){ var p=parts(new Date(it.target)-now);
-      var mini=p.past?(p.d+'<small>일</small>'+p.h+'<small>시</small> 지남'):(p.d+'<small>일</small>'+p.h+'<small>시</small>'+pad(p.m)+'<small>분</small>');
-      return '<button class="card '+(p.past?'past':'')+'" data-id="'+it.id+'">'+(p.past?'<span class="tag">지남</span>':'')+
-        '<div class="name">'+esc(it.name)+'</div><div class="date">'+fmtDate(it.target)+'</div>'+
-        '<div class="mini" data-mini="'+it.id+'">'+mini+'</div></button>'; }).join("");
+    var active=items.filter(function(x){return !x.archived;}), arch=items.filter(function(x){return x.archived;});
+    var pastN=active.filter(function(x){return isPast(x,now);}).length; lastPastN=pastN;
+    countEl.textContent = active.length ? (active.length+"개") : "";
+    archAllBtn.hidden = !pastN;
+    if(!active.length){
+      grid.innerHTML = arch.length
+        ? '<div class="empty"><strong>진행 중인 카운트다운이 없어요</strong>지난 일정은 아래 보관함에 있어요.</div>'
+        : '<div class="empty"><strong>아직 비어 있어요</strong>위에서 첫 카운트다운을 추가해 보세요.</div>';
+    }else{
+      var sorted=active.slice().sort(function(a,b){ var ra=new Date(a.target)-now,rb=new Date(b.target)-now;
+        var pa=ra<0,pb=rb<0; if(pa!==pb)return pa?1:-1; return pa?rb-ra:ra-rb; });
+      grid.innerHTML=sorted.map(function(it){ return cardHtml(it,now); }).join("");
+    }
+    // archive (most recently passed first)
+    archHead.hidden = !arch.length;
+    archCount.textContent = arch.length ? (arch.length+"개") : "";
+    archToggle.setAttribute("aria-expanded", archOpen?"true":"false");
+    archGrid.hidden = !arch.length || !archOpen;
+    archGrid.innerHTML = arch.slice().sort(function(a,b){ return new Date(b.target)-new Date(a.target); })
+      .map(function(it){ return cardHtml(it,now); }).join("");
   }
-  function tickList(){ var now=Date.now(); items.forEach(function(it){ var el=grid.querySelector('[data-mini="'+it.id+'"]'); if(!el)return;
-    var p=parts(new Date(it.target)-now); el.innerHTML=p.past?(p.d+'<small>일</small>'+p.h+'<small>시</small> 지남'):(p.d+'<small>일</small>'+p.h+'<small>시</small>'+pad(p.m)+'<small>분</small>'); }); }
+  function tickList(){ var now=Date.now(), pastN=0;
+    items.forEach(function(it){ if(!it.archived && isPast(it,now)) pastN++; });
+    if(pastN!==lastPastN){ render(); return; }   // something just passed → refresh tags & the archive button
+    items.forEach(function(it){ var el=document.querySelector('[data-mini="'+it.id+'"]'); if(!el)return;
+      el.innerHTML=miniHtml(parts(new Date(it.target)-now)); }); }
 
   // ---------- detail ----------
   function openDetail(id){ var it=items.filter(function(x){return x.id===id;})[0]; if(!it)return;
@@ -418,6 +472,7 @@
     var set=function(k,v){ var n=$('#unitsA .num[data-k="'+k+'"]'); if(n)n.textContent=v; };
     set("d",p.d);set("h",pad(p.h));set("m",pad(p.m));set("s",pad(p.s));
     if(p.s!==lastSec){ var sc=$('#unitsA .sec .num'); if(sc){sc.classList.remove("tick");void sc.offsetWidth;sc.classList.add("tick");} lastSec=p.s; }
+    var ab=$("#arch"); ab.hidden=!(it.archived||p.past); ab.textContent=it.archived?"보관 해제":"보관함으로 이동"; $("#pArch").hidden=!it.archived||!$("#editBox").hidden;
     var flag=p.past?'<span class="s past-flag">지났어요</span>':"";
     $("#lineB").innerHTML='<span class="u">'+p.totalH+'</span><span class="s">시</span><span class="u">'+pad(p.m)+'</span><span class="s">분</span><span class="u">'+pad(p.s)+'</span><span class="s">초</span>'+flag;
     var start=it.created||new Date(it.target).getTime(), span=new Date(it.target)-start, prog=span>0?(Date.now()-start)/span:1;
@@ -431,13 +486,23 @@
 
   function startEdit(){ var it=items.filter(function(x){return x.id===openId;})[0]; if(!it)return;
     $("#eName").value=it.name; $("#eDate").value=it.target;
-    $("#pName").hidden=true; $("#pDate").hidden=true; $("#editBox").hidden=false; $("#eName").focus(); }
+    $("#pName").hidden=true; $("#pDate").hidden=true; $("#pArch").hidden=true; $("#editBox").hidden=false; $("#eName").focus(); }
   function cancelEdit(){ $("#editBox").hidden=true; $("#pName").hidden=false; $("#pDate").hidden=false; }
   async function saveEdit(){ var it=items.filter(function(x){return x.id===openId;})[0]; if(!it)return;
     var nn=$("#eName").value.trim(), nd=$("#eDate").value; if(!nn){$("#eName").focus();return;} if(!nd){$("#eDate").focus();return;}
     it.name=nn; it.target=nd;
     $("#pName").textContent=nn; $("#pDate").textContent=fmtDate(nd); cancelEdit();
     render(); tickDetail(); await persist(); }
+
+  // ---------- archive ----------
+  async function toggleArchive(){ var it=items.filter(function(x){return x.id===openId;})[0]; if(!it)return;
+    if(it.archived){ delete it.archived; delete it.archivedAt; }
+    else{ it.archived=true; it.archivedAt=Date.now(); archOpen=true; store.set("arch_open", true); }
+    closeDetail(); render(); await persist(); }
+  async function archiveAllPast(){ var now=Date.now(), n=0;
+    items.forEach(function(it){ if(!it.archived && isPast(it,now)){ it.archived=true; it.archivedAt=now; n++; } });
+    if(!n)return; render(); await persist(); }
+  function toggleArchView(){ archOpen=!archOpen; store.set("arch_open", archOpen); render(); }
 
   async function del(){ if(!openId)return; items=items.filter(function(x){return x.id!==openId;});
     closeDetail(); render(); await persist(); }
@@ -447,6 +512,10 @@
   $("#name").addEventListener("keydown",function(e){ if(e.key==="Enter")$("#date").focus(); });
   $("#date").addEventListener("keydown",function(e){ if(e.key==="Enter")add(); });
   grid.addEventListener("click",function(e){ var c=e.target.closest(".card"); if(c)openDetail(c.dataset.id); });
+  archGrid.addEventListener("click",function(e){ var c=e.target.closest(".card"); if(c)openDetail(c.dataset.id); });
+  archToggle.addEventListener("click", toggleArchView);
+  archAllBtn.addEventListener("click", archiveAllPast);
+  $("#arch").addEventListener("click", toggleArchive);
   $("#close").addEventListener("click", closeDetail);
   $("#edit").addEventListener("click", startEdit);
   $("#eSave").addEventListener("click", saveEdit);
@@ -467,6 +536,7 @@
   // ---------- boot ----------
   (async function(){
     autodetect(); await loadCfg();
+    archOpen = (await store.get("arch_open"))===true;
     if(configured()){
       renderSync();
       var c=await store.get(cacheKey()); if(Array.isArray(c)){ items=c; render(); }
